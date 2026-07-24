@@ -73,7 +73,7 @@ In the repo → Settings → Secrets and variables → Actions, add:
 | `VERCEL_TOKEN` | Vercel personal token (vercel.com/account/tokens) | frontend deploy |
 | `VERCEL_ORG_ID` | `vercel link` prints it, or dashboard → project → settings | frontend deploy |
 | `VERCEL_PROJECT_ID` | same source as ORG_ID | frontend deploy |
-| `RENDER_DEPLOY_HOOK` | Render dashboard → service → Settings → Deploy Hook URL | backend deploy |
+| `RENDER_DEPLOY_HOOK_URL` | Render dashboard → service → Settings → Deploy Hook URL | backend deploy |
 | `BACKEND_URL` | `https://<backend>.onrender.com` (no trailing slash) | backend health-check job |
 
 The `deploy.yml` workflow triggers on every push to `main` after CI is green (enforce branch protection so CI must pass before merge).

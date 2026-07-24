@@ -67,16 +67,14 @@ jobs:
     steps:
       - name: Trigger Render deploy hook
         env:
-          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
-            echo "::error::RENDER_DEPLOY_HOOK secret not set"
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_URL secret not set"
             exit 1
           fi
           echo "Triggering Render deploy hook..."
-          curl -fsSL -X POST "$RENDER_DEPLOY_HOOK" \
-            -H "Content-Type: application/json" \
-            -d '{"clearCache": "false"}' \
+          curl -fsSL "$RENDER_DEPLOY_HOOK_URL" \
             -o render-response.json -w "HTTP %{http_code}\n"
           echo "::notice::Render deploy triggered"
 
