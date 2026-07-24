@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+.env
+.env.production
+
+# Modelos pesados — se serviran desde CDN en prod
+public/models/*.tflite
+public/models/*.onnx
+
+#日志
+*.log

@@ -1,0 +1,34 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Dataset (CC BY 4.0 Roboflow — no commitear imágenes)
+dataset/train/
+dataset/valid/
+dataset/test/
+
+# Modelos grandes — distribuidos vía GitHub Releases (assets), no en el repo.
+# Ver DEPLOY.md y el release v1.0.0 para descargarlos.
+models/*.pt
+models/*.tflite
+models/*.onnx
+
+# Run artifacts
+runs/
+*.log
+
+# Zone.Identifier (Windows artifacts en WSL)
+*:Zone.Identifier
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

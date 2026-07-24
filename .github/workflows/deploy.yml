@@ -1,0 +1,100 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-frontend:
+    name: Deploy frontend to Vercel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: []
+    # Reuse CI绿色信号 — in a monorepo you'd gate on a `needs: ci` job, but CI
+    # runs as a separate workflow. Branch protection rules enforce CI must pass.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel environment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          cd frontend
+          vercel pull --yes --environment=production --token "$VERCEL_TOKEN" || true
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Deploy to Vercel (production)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          cd frontend
+          vercel deploy --prod --yes --token "$VERCEL_TOKEN" > vercel-url.txt
+          echo "FRONTEND_URL=$(cat vercel-url.txt)" >> $GITHUB_ENV
+          echo "::notice::Frontend deployed to $(cat vercel-url.txt)"
+
+  deploy-backend:
+    name: Deploy backend to Render
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Trigger Render deploy hook
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK secret not set"
+            exit 1
+          fi
+          echo "Triggering Render deploy hook..."
+          curl -fsSL -X POST "$RENDER_DEPLOY_HOOK" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache": "false"}' \
+            -o render-response.json -w "HTTP %{http_code}\n"
+          echo "::notice::Render deploy triggered"
+
+      - name: Wait for backend health (warm-up)
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+        run: |
+          if [ -z "$BACKEND_URL" ]; then
+            echo "::warning::BACKEND_URL secret not set — skipping health check"
+            exit 0
+          fi
+          echo "Polling $BACKEND_URL/health ..."
+          for i in $(seq 1 30); do
+            if curl -sf "${BACKEND_URL}/health" > /dev/null 2>&1; then
+              echo "Backend healthy after ${i}0s"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Backend did not become healthy in 5min"
+          exit 1

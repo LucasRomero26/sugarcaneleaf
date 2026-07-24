@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 5
+names: ['healthy', 'mosaic', 'red_rot', 'rust', 'yellow']
+
+roboflow:
+  workspace: amos-workspace-r7d7a
+  project: sugarcane_leaf_disease-qbvp9
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/amos-workspace-r7d7a/sugarcane_leaf_disease-qbvp9/dataset/1

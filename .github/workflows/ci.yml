@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest httpx pytest-asyncio
+
+      - name: Run tests
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: pytest backend/tests/ -v
+
+  frontend:
+    name: Frontend (typecheck + lint + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Typecheck
+        run: npx tsc -b
+        working-directory: frontend
+
+      - name: Lint
+        run: npm run lint -- --deny=warn
+        working-directory: frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: frontend
+
+  tflite-smoke:
+    name: TFLite export integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download model assets from GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p models
+          gh release download v1.0.0 \
+            --pattern "Yolo26m-seg.tflite" \
+            --pattern "Yolo26m-seg.onnx" \
+            --dir models \
+            --clobber
+          ls -la models/
+
+      - name: Verify .tflite exists and is non-empty
+        run: |
+          if [ ! -f "models/Yolo26m-seg.tflite" ]; then
+            echo "::error::models/Yolo26m-seg.tflite not found in release v1.0.0"
+            exit 1
+          fi
+          size=$(stat -c%s "models/Yolo26m-seg.tflite")
+          echo "tflite size: ${size} bytes"
+          if [ "$size" -lt 1000000 ]; then
+            echo "::error::tflite is suspiciously small (<1MB) — export may be corrupted"
+            exit 1
+          fi
+          # FlatBuffer magic "TFL3" lives at offset 4 (first 4 bytes are the offset)
+          header=$(head -c 8 "models/Yolo26m-seg.tflite" | od -An -tx1 -N8 | tr -d ' \n')
+          if echo "$header" | grep -qv "54464c33"; then
+            echo "::error::tflite magic 'TFL3' not found in header (got '$header')"
+            exit 1
+          fi
+          echo "OK: tflite valid"
+
+      - name: Verify .onnx fallback exists
+        run: |
+          if [ ! -f "models/Yolo26m-seg.onnx" ]; then
+            echo "::error::models/Yolo26m-seg.onnx not found in release v1.0.0"
+            exit 1
+          fi
+          size=$(stat -c%s "models/Yolo26m-seg.onnx")
+          echo "onnx size: ${size} bytes"

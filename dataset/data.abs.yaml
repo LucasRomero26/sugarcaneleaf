@@ -1,0 +1,6 @@
+train: /home/sac/src/Sugarcane/dataset/train/images
+val: /home/sac/src/Sugarcane/dataset/valid/images
+test: /home/sac/src/Sugarcane/dataset/test/images
+
+nc: 5
+names: ['healthy', 'mosaic', 'red_rot', 'rust', 'yellow']

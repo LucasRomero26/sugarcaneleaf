@@ -1,0 +1,33 @@
+{
+  "n_images_compared": 50,
+  "identical_predictions": 48,
+  "pct_identical": 96.0,
+  "n_mismatches": 2,
+  "pt_avg_latency_ms": 324.1,
+  "tflite_avg_latency_ms": 2647.7,
+  "mismatches_detail": [
+    {
+      "image": "Healthy_0020_jpeg.rf.d33aba522ab7279d185cf83e8141f1b4.jpg",
+      "pt_n_det": 0,
+      "tflite_n_det": 1,
+      "pt_classes": [],
+      "tflite_classes": [
+        4
+      ],
+      "issue": "n_det_missmatch"
+    },
+    {
+      "image": "Healthy_0044_jpeg.rf.a0c728098bca3c9d66f0ed0a65624e94.jpg",
+      "pt_n_det": 1,
+      "tflite_n_det": 2,
+      "pt_classes": [
+        0
+      ],
+      "tflite_classes": [
+        0,
+        0
+      ],
+      "issue": "n_det_missmatch"
+    }
+  ]
+}
