@@ -1,10 +1,13 @@
-const RELEASE_TAG = 'v1.0.0';
-const RELEASE_ORIGIN =
+// Model weights are hosted on a CDN that serves `Access-Control-Allow-Origin: *`
+// (required for cross-origin fetch from the browser). GitHub Releases assets do
+// NOT send CORS headers, so we use HuggingFace Hub instead. Override via
+// VITE_MODEL_CDN if you need to migrate (e.g. Cloudflare R2 custom domain).
+const MODEL_CDN =
   import.meta.env.VITE_MODEL_CDN ||
-  'https://github.com/LucasRomero26/sugarcaneleaf/releases/download';
+  'https://huggingface.co/sacwaves/sugarcaneleaf/resolve/main';
 
-export const MODEL_PATH = `${RELEASE_ORIGIN}/${RELEASE_TAG}/Yolo26m-seg.tflite`;
-export const FALLBACK_MODEL_PATH = `${RELEASE_ORIGIN}/${RELEASE_TAG}/Yolo26m-seg.onnx`;
+export const MODEL_PATH = `${MODEL_CDN}/Yolo26m-seg.tflite`;
+export const FALLBACK_MODEL_PATH = `${MODEL_CDN}/Yolo26m-seg.onnx`;
 
 export const yoloClasses: Record<number, string> = {
   0: 'healthy',
