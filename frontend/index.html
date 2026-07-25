@@ -9,6 +9,23 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <title>Sugarcane Leaf Disease Detection</title>
+    <!--
+      Import map for @litertjs/core.
+      @ultralytics/yolo loads LiteRT.js via an indirect dynamic import
+      (`const pkg = '@litertjs/core'; await import(pkg)`) which Vite cannot
+      statically resolve, so we hand it to the browser's import map instead.
+      jsDelivr serves @litertjs/core with `cross-origin-resource-policy:
+      cross-origin` and `access-control-allow-origin: *`, which makes it
+      loadable under our cross-origin isolation (COOP/COEP) headers.
+      Pin the version to match the one in package-lock.json (avoids drift).
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@litertjs/core": "https://cdn.jsdelivr.net/npm/@litertjs/core@2.5.3/+esm"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
