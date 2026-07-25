@@ -3,10 +3,8 @@ import type { YOLO, Results } from '@ultralytics/yolo';
 import { loadModel, runInference, freeModel } from '../lib/yolo';
 import { reportLatency } from '../lib/metrics';
 import { WebGPUStatus } from './WebGPUStatus';
-import { classColors, yoloClasses, prettyClass } from '../lib/config';
+import { classColors, yoloClasses, prettyClass, MODEL_PATH, FALLBACK_MODEL_PATH } from '../lib/config';
 
-const MODEL_PATH = '/models/Yolo26m-seg.tflite';
-const FALLBACK_MODEL_PATH = '/models/Yolo26m-seg.onnx';
 const CONF_THRESHOLD = 0.5;
 
 export function DemoCanvas() {

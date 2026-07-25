@@ -1,3 +1,11 @@
+const RELEASE_TAG = 'v1.0.0';
+const RELEASE_ORIGIN =
+  import.meta.env.VITE_MODEL_CDN ||
+  'https://github.com/LucasRomero26/sugarcaneleaf/releases/download';
+
+export const MODEL_PATH = `${RELEASE_ORIGIN}/${RELEASE_TAG}/Yolo26m-seg.tflite`;
+export const FALLBACK_MODEL_PATH = `${RELEASE_ORIGIN}/${RELEASE_TAG}/Yolo26m-seg.onnx`;
+
 export const yoloClasses: Record<number, string> = {
   0: 'healthy',
   1: 'mosaic',
