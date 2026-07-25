@@ -9,7 +9,16 @@ export async function loadModel(modelPath: string): Promise<YOLO> {
 
   loadPromise = (async () => {
     const { default: YOLOClass } = await import('@ultralytics/yolo');
-    modelInstance = await YOLOClass.load(modelPath, { device: 'auto' });
+    modelInstance = await YOLOClass.load(modelPath, {
+      device: 'auto',
+      // Self-host the LiteRT.js wasm assets at /litert/ so the Web Workers
+      // LiteRT spawns (for threaded wasm) and the wasm downloads are
+      // same-origin. Loading them cross-origin (e.g. from jsDelivr) breaks
+      // under our COEP=require-corp headers — workers refused to spawn and
+      // wasm fetches failed CORP validation. The 38MB of files (8 binaries)
+      // live in frontend/public/litert/ and get served by Vercel.
+      litertWasmUrl: '/litert/',
+    });
     return modelInstance;
   })();
 
