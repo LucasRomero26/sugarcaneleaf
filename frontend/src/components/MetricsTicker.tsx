@@ -105,10 +105,14 @@ export function MetricsTicker() {
     let active = true;
 
     // Seed timeline from the cached window extremity so the chart isn't
-    // empty after a page reload.
+    // empty after a page reload, regardless of whether the local cache
+    // already had data on mount (lastCountRef may be > 0 in that case,
+    // which previously blocked seeding — leaving "Collecting samples…"
+    // forever unless a new report arrived).
     const seed = getLocalSummary();
-    if (seed.count > 0 && lastCountRef.current === 0) {
+    if (seed.count > 0) {
       setTimeline((prev) => prev.length > 0 ? prev : buildSeedTimeline(seed));
+      lastCountRef.current = seed.count;
     }
 
     const pushTimeline = (data: MetricsSummary) => {
