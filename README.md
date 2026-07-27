@@ -2,11 +2,11 @@
 
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=flat-square)](https://sugarcaneleaf.vercel.app)
 [![mAP@0.5](https://img.shields.io/badge/mAP@0.5-91.7%25-blue?style=flat-square)](reports/val_metrics.json)
-[![p99 latency](https://img.shields.io/badge/p99-47ms%20client--side-orange?style=flat-square)](#latency--dashboard)
+[![p99 latency](https://img.shields.io/badge/p99-~47ms%20WebGPU%20desktop-orange?style=flat-square)](#latency--dashboard)
 [![WebGPU](https://img.shields.io/badge/runtime-WebGPU%20%2B%20LiteRT.js-purple?style=flat-square)](#architecture)
 [![CI](https://img.shields.io/github/actions/workflow/status/LucasRomero26/sugarcaneleaf/ci.yml?style=flat-square&label=CI)](https://github.com/LucasRomero26/sugarcaneleaf/actions)
 
-> Foliar disease segmentation for sugarcane. A YOLO26m-seg model trained on 6,000+ field images, exported to LiteRT and served entirely client-side via WebGPU — **no server roundtrip for inference**. Includes a live latency dashboard collecting real metrics from visitors.
+> Foliar disease segmentation for sugarcane. A YOLO26m-seg model trained on 6,000+ field images, exported to LiteRT and served entirely client-side via WebGPU — **no server roundtrip for inference**. Includes a live latency dashboard collecting real metrics from visitors. Typical p99 is ~47ms on a desktop GPU (WebGPU); mobile/integrated-GPU visitors see higher latencies and that's exactly what the dashboard reports.
 
 **Live demo:** https://sugarcaneleaf.vercel.app · **Backend health:** https://sugarcane-backend-ql0e.onrender.com/health · **Code:** https://github.com/LucasRomero26/sugarcaneleaf
 
@@ -131,7 +131,7 @@ The dashboard (`/#/dashboard`) is the MLOps half of the project. Without it, Lit
 
 **What it shows (live, updated every 30s):**
 
-- **p50 / p99 latency** in ms, from real visitor inferences.
+- **p50 / p99 latency** in ms, from real visitor inferences. The hero number (~47ms) refers to typical desktop-GPU WebGPU latency; what the dashboard shows you is whatever your device actually produced — integrated GPUs and mobile will be higher. **The dashboard is the honest number; the hero is the typical case.**
 - **Throughput** — inferences per minute.
 - **Error rate** — % of requests timing out or failing.
 - **Backend split** — % of visitors running on WebGPU vs the WASM fallback (useful to know your audience).

@@ -104,9 +104,10 @@ export default function App() {
                   <div className="stat-block-label">Disease Classes</div>
                 </div>
                 <div className="stat-block stat-block-sm">
-                  <div className="stat-block-number">{msCount}<span className="stat-block-unit">ms</span></div>
+                  <div className="stat-block-number">~{msCount}<span className="stat-block-unit">ms</span></div>
                   <div className="stat-block-rule"></div>
                   <div className="stat-block-label">p99 Latency</div>
+                  <div className="stat-block-desc">Typical on desktop GPU via WebGPU — measured live on your device in the dashboard</div>
                 </div>
               </div>
             </div>
