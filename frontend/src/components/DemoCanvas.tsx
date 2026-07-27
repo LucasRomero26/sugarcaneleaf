@@ -98,7 +98,20 @@ export function DemoCanvas() {
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) handleFile(file);
+    if (file) {
+      // Reset value so picking the same file twice re-triggers onChange
+      e.target.value = '';
+      handleFile(file);
+    }
+  };
+
+  const resetToUpload = () => {
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+    setImageUrl(null);
+    setResults(null);
+    setLatency(null);
+    setError(null);
+    if (fileInputRef.current) fileInputRef.current.click();
   };
 
   const detectionList = results?.boxes?.map((b, i) => (
@@ -117,33 +130,55 @@ export function DemoCanvas() {
         {useFallback && <div className="badge badge-fallback">ONNX fallback</div>}
       </div>
 
-      <div
-        className="drop-zone"
-        onDrop={handleDrop}
-        onDragOver={(e) => e.preventDefault()}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        {imageUrl ? (
-          <canvas ref={canvasRef} className="result-canvas" />
-        ) : (
-          <div className="drop-placeholder">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
-              <polyline points="7 10 12 15 17 10" strokeLinecap="round" strokeLinejoin="round" />
-              <line x1="12" y1="15" x2="12" y2="3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <p>Drag & drop a leaf image or click to upload</p>
-            <span className="hint">JPEG, PNG, or WebP — max 10MB</span>
+      {loading ? (
+        <div className="drop-zone drop-zone-loading">
+          <div className="loading-placeholder">
+            <div className="spinner" aria-hidden="true" />
+            <p>{error ? 'Retrying with ONNX fallback…' : 'Loading YOLO26m-seg model…'}</p>
+            <span className="hint">First visit downloads ~90MB from CDN (cached on subsequent loads)</span>
           </div>
-        )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileInput}
-          style={{ display: 'none' }}
-        />
-      </div>
+        </div>
+      ) : (
+        <div
+          className="drop-zone"
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
+          onClick={() => !imageUrl && fileInputRef.current?.click()}
+        >
+          {imageUrl ? (
+            <canvas ref={canvasRef} className="result-canvas" />
+          ) : (
+            <div className="drop-placeholder">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+                <polyline points="7 10 12 15 17 10" strokeLinecap="round" strokeLinejoin="round" />
+                <line x1="12" y1="15" x2="12" y2="3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <p>Drag & drop a leaf image or click to upload</p>
+              <span className="hint">JPEG, PNG, or WebP — max 10MB</span>
+            </div>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileInput}
+            style={{ display: 'none' }}
+          />
+        </div>
+      )}
+
+      {imageUrl && !predicting && (
+        <div className="result-actions">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={resetToUpload}
+          >
+            Try another image
+          </button>
+        </div>
+      )}
 
       <div className="demo-footer">
         <div className="detections-panel">
@@ -152,7 +187,9 @@ export function DemoCanvas() {
             <div className="detection-list">{detectionList}</div>
           ) : (
             <p className="no-detections">
-              {predicting ? 'Running inference...' : 'No detections yet. Upload an image.'}
+              {predicting ? 'Running inference…' :
+               loading ? 'Waiting for model to finish loading…' :
+               'No detections yet. Upload an image.'}
             </p>
           )}
           {error && <div className="error">{error}</div>}

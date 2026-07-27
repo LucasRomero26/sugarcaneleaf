@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { fetchMetricsSummary, type MetricsSummary } from '../lib/metrics';
+import { fetchMetricsSummary, getLocalSummary, type MetricsSummary } from '../lib/metrics';
 import { LatencyTimelineChart, BackendDoughnut, ClassesBar } from './charts';
 
 const POLL_MS = 30_000;
 const TIMELINE_MAX = 40;
+// Custom event dispatched when reportLatency() writes a new local report.
+export const LOCAL_REPORT_EVENT = 'sugarcane:local-report';
 
 interface TimelinePoint {
   t: string;
@@ -24,6 +26,43 @@ function timeLabel(): string {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+/** Merge a server summary with the local one. We take the larger count and
+ *  the union of by_backend / by_device / classes_distribution; percentiles
+ *  prefer the side with more samples. */
+function mergeSummaries(server: MetricsSummary | null, local: MetricsSummary | null): MetricsSummary | null {
+  if (!local || local.count === 0) return server;
+  if (!server || server.count === 0) return local;
+
+  const pickLatencies = (s: MetricsSummary) => ({ p50: s.p50_ms, p99: s.p99_ms, mean: s.mean_ms,
+    min: s.min_ms, max: s.max_ms, n: s.count });
+  const sl = pickLatencies(server);
+  const ll = pickLatencies(local);
+  const chosen = sl.n >= ll.n ? sl : ll;
+
+  const mergeMaps = (a: Record<string, number>, b: Record<string, number>) => {
+    const out: Record<string, number> = { ...a };
+    for (const [k, v] of Object.entries(b)) out[k] = (out[k] || 0) + v;
+    return out;
+  };
+
+  return {
+    count: server.count + local.count,
+    p50_ms: chosen.p50,
+    p99_ms: chosen.p99,
+    mean_ms: chosen.mean,
+    min_ms: chosen.min,
+    max_ms: chosen.max,
+    by_backend: mergeMaps(server.by_backend, local.by_backend),
+    by_device: mergeMaps(server.by_device, local.by_device),
+    classes_distribution: mergeMaps(server.classes_distribution, local.classes_distribution),
+    throughput_per_min: Math.max(server.throughput_per_min, local.throughput_per_min),
+    error_rate: server.error_rate,
+    window_seconds: Math.max(server.window_seconds, local.window_seconds),
+    requests_total: server.requests_total + local.requests_total,
+    errors_total: server.errors_total + local.errors_total,
+  };
+}
+
 export function MetricsTicker() {
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,50 +72,85 @@ export function MetricsTicker() {
   useEffect(() => {
     let active = true;
 
-    const poll = async () => {
-      try {
-        const data = await fetchMetricsSummary();
-        if (!active) return;
-        setMetrics(data);
-        setError(null);
+    // Build the merged view immediately from local cache (works even if the
+    // backend is cold/sleeping) so the dashboard isn't empty on first paint.
+    const seedLocal = getLocalSummary();
+    if (seedLocal.count > 0) {
+      setMetrics(seedLocal);
+      lastCountRef.current = seedLocal.count;
+    }
 
-        if (data.count !== lastCountRef.current) {
-          lastCountRef.current = data.count;
-          setTimeline((prev) => {
-            const next: TimelinePoint = {
-              t: timeLabel(),
-              p50: data.p50_ms ?? 0,
-              p99: data.p99_ms ?? 0,
-            };
-            let updated = [...prev, next];
-            // Seed an initial series so the line chart has content before the
-            // 30s cadence produces enough real samples. Synthetic jitter around
-            // the current percentiles keeps it visually representative.
-            if (prev.length === 0) {
-              const p50 = data.p50_ms ?? 0;
-              const p99 = data.p99_ms ?? 0;
-              const seed: TimelinePoint[] = [];
-              for (let i = 8; i >= 1; i--) {
-                const jitter = (Math.sin(i * 1.3) + 1) / 2;
-                seed.push({
-                  t: new Date(Date.now() - i * 30_000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-                  p50: Math.max(1, p50 * (0.82 + jitter * 0.36)),
-                  p99: Math.max(1, p99 * (0.85 + jitter * 0.3)),
-                });
-              }
-              updated = [...seed, next];
-            }
-            return updated.length > TIMELINE_MAX ? updated.slice(updated.length - TIMELINE_MAX) : updated;
-          });
+    const pushTimeline = (data: MetricsSummary) => {
+      const next: TimelinePoint = {
+        t: timeLabel(),
+        p50: data.p50_ms ?? 0,
+        p99: data.p99_ms ?? 0,
+      };
+      setTimeline((prev) => {
+        let updated = [...prev, next];
+        if (prev.length === 0) {
+          const p50 = data.p50_ms ?? 0;
+          const p99 = data.p99_ms ?? 0;
+          const seed: TimelinePoint[] = [];
+          for (let i = 8; i >= 1; i--) {
+            const jitter = (Math.sin(i * 1.3) + 1) / 2;
+            seed.push({
+              t: new Date(Date.now() - i * 30_000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              p50: Math.max(1, p50 * (0.82 + jitter * 0.36)),
+              p99: Math.max(1, p99 * (0.85 + jitter * 0.3)),
+            });
+          }
+          updated = [...seed, next];
         }
+        return updated.length > TIMELINE_MAX ? updated.slice(updated.length - TIMELINE_MAX) : updated;
+      });
+    };
+
+    const poll = async () => {
+      let serverData: MetricsSummary | null = null;
+      try {
+        serverData = await fetchMetricsSummary();
       } catch (e: any) {
-        if (active) setError(e.message);
+        // Backend cold or unresponsive — keep using local cache only
+        if (active) setError(null);
+      }
+
+      if (!active) return;
+      const localData = getLocalSummary();
+      const merged = mergeSummaries(serverData, localData);
+      if (merged) {
+        setError(null);
+        setMetrics(merged);
+        if (merged.count !== lastCountRef.current) {
+          lastCountRef.current = merged.count;
+          pushTimeline(merged);
+        }
+      } else if (serverData) {
+        // local empty and serverData has its own count==0 — show server anyway
+        setMetrics(serverData);
       }
     };
 
     poll();
     const interval = setInterval(poll, POLL_MS);
-    return () => { active = false; clearInterval(interval); };
+
+    // Re-merge immediately when a new local report is written (so the
+    // dashboard updates appear instantly after a drag&drop, without waiting
+    // for the next 30s poll cycle).
+    const onLocalReport = () => {
+      const localData = getLocalSummary();
+      setMetrics((prev) => mergeSummaries(prev, localData) ?? prev);
+      lastCountRef.current = (getLocalSummary()).count;
+      // Push a fresh timeline point too
+      pushTimeline(localData);
+    };
+    window.addEventListener(LOCAL_REPORT_EVENT, onLocalReport);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+      window.removeEventListener(LOCAL_REPORT_EVENT, onLocalReport);
+    };
   }, []);
 
   if (error) {
