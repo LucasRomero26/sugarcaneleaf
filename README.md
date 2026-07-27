@@ -144,6 +144,21 @@ The dashboard (`/#/dashboard`) is the MLOps half of the project. Without it, Lit
 - The browser merges its own `localStorage` cache of past inferences with the server's aggregate, so a page reload never loses your session history. This is the **stale-while-revalidate** pattern (used by TanStack Query, SWR, Next.js cache): show what we have immediately, revalidate in the background.
 - The timeline seed is synthetic (jittered around the current percentiles) on the first paint, then replaced by real samples as they arrive — the chart is never blank.
 
+### Load test (k6)
+
+A `k6` load test exercises the backend's non-inference endpoints (`/health` + `/metrics-summary`) under 5 concurrent virtual users for 1 minute. The `/predict` endpoint is deliberately **not** hit — that runs YOLO server-side on a 512MB free-tier container and would only measure CPU contention, not the service's actual latency budget.
+
+**Results (Render free tier, 2026-07-27):**
+
+| Metric | Value | Target |
+|---|---|---|
+| p99 latency | **204.56ms** | < 5000ms |
+| Error rate | **0.00%** (0 / 1068) | < 5% |
+| Throughput | 17.64 req/s sustained | — |
+| Iterations | 534 in 60s | — |
+
+This supports the architectural tradeoff directly: the server comfortably holds 5 concurrent users at ~200ms p99 for everything **except** server-side inference — the exact workload the client-side LiteRT.js + WebGPU path exists to avoid. Full report: `reports/loadtest.md`. Reproducible with `k6 run loadtest.js` (script at repo root).
+
 ---
 
 ## Repository structure
@@ -231,8 +246,8 @@ cd frontend && npm run build   # tsc -b + vite build (typecheck gate)
 - **Firefox / Safari without WebGPU** — the demo automatically falls back to `onnxruntime-web` on WASM and shows a "Fallback" badge in the UI. Latency on WASM is ~2–5× slower than WebGPU.
 - **Render free tier cold start** — the backend sleeps after 15 min idle. The first `/report` after sleep takes ~30–60s; a UptimeRobot keep-alive ping mitigates but does not eliminate this. The frontend's stale-while-revalidate design means the dashboard never goes blank during a cold start — your own local history renders immediately.
 - **Model download on first visit** — the `.tflite` (90.1 MB) loads from HuggingFace Hub on the first visit (~10–15s). The browser HTTP-caches it for subsequent reloads *if* the CDN returns proper `Cache-Control` headers; HuggingHub currently returns `no-store` on the redirect hop, so expect to re-download on hard refresh. IndexedDB caching of the model is a planned improvement.
-- **Webcam / live-video mode (Phase 5 of the PLAN)** — **not implemented.** The PLAN explicitly marks this phase as optional; real-time webcam segmentation at 5fps sustained would be a differentiator, but it was cut to ship the demo + dashboard + portfolio card on time. See `PLAN.md` Fase 5 for the spec.
-- **k6 load test (Phase 5 of the PLAN)** — **not implemented** (part of the same optional phase). `reports/loadtest.md` does not exist.
+- **Webcam / live-video mode** — **implemented.** Click "Webcam mode" on the demo after the model loads to run live segmentation at 5fps over `getUserMedia({video: true})`. The `<video>` is overlaid by the inference `<canvas>` inside the existing 16/9 drop-zone — no new layout primitive. Stops cleanly on unmount and releases the camera tracks. Falls back to the standard drag&drop UI if `getUserMedia` is unsupported or permission is denied.
+- **Load test** — **implemented.** `reports/loadtest.md` contains a k6 run against the deployed Render backend: 5 VUs × 1 min against `/health` + `/metrics-summary`, p99 = 204.56ms, 0% errors. The `/predict` endpoint is deliberately excluded (server-side YOLO on free-tier CPU would only measure CPU contention, not service health). Reproducible: `k6 run loadtest.js`.
 - **Backend persistence** — the ring buffer is in-memory only. It does not survive a Render sleep/redeploy. This is a deliberate trade-off: a free-tier Observed MLOps demo with a turn-down window beats a demo that pretends to persist with a paid DB.
 
 ---
