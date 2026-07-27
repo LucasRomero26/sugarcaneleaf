@@ -59,6 +59,16 @@ async def health():
     return {"status": "ok", "service": "sugarcane-backend", "version": "0.1.0"}
 
 
+# UptimeRobot's free tier only supports HEAD requests, not GET. Starlette
+# does not auto-map GET handlers to HEAD (it returns 405), so we add a HEAD
+# handler that returns the same status without the body. Without this,
+# UptimeRobot marked the backend Down with "405 Method Not Allowed" and
+# Render's free tier could sleep indefinitely.
+@app.head("/health")
+async def health_head():
+    return JSONResponse(content=None, status_code=200)
+
+
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     REQUESTS_TOTAL.labels(endpoint="predict").inc()
