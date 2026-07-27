@@ -22,7 +22,7 @@ The `.tflite`/`.onnx` models are served statically from the frontend bundle, so 
 1. Push `render.yaml` (already in repo root) to GitHub.
 2. Go to [Render Dashboard → New → Blueprint](https://dashboard.render.com/web/blueprints).
 3. Select the `sugarcane` repo. Render reads `render.yaml` and creates `sugarcane-backend` automatically.
-4. The service exposes `/health` and `/metrics-summary`. Note the URL: `https://sugarcane-backend.onrender.com`.
+4. The service exposes `/health` and `/metrics-summary`. Note the URL: `https://sugarcane-backend-ql0e.onrender.com`.
 
 ### Option B: Manual
 
@@ -34,7 +34,7 @@ The `.tflite`/`.onnx` models are served statically from the frontend bundle, so 
 
 ### Keep-alive (UptimeRobot)
 
-Render free tier sleeps after 15 min idle. Add a UptimeRobot HTTP monitor hitting `https://<backend-url>/health` every 10 min.
+Render free tier sleeps after 15 min idle. Add a UptimeRobot HTTP monitor hitting `https://sugarcane-backend-ql0e.onrender.com/health` every 10 min.
 
 ## 2. Frontend — Vercel
 
@@ -58,7 +58,7 @@ Render free tier sleeps after 15 min idle. Add a UptimeRobot HTTP monitor hittin
 
 Set in Vercel → project → Settings → Environment Variables (Production):
 ```
-VITE_API_URL=https://<backend>.onrender.com   # no trailing slash
+VITE_API_URL=https://sugarcane-backend-ql0e.onrender.com   # no trailing slash
 ```
 The frontend reads this at build time, so changing it triggers a redeploy.
 
@@ -73,7 +73,7 @@ In the repo → Settings → Secrets and variables → Actions, add:
 | Secret | Value | Used by |
 |---|---|---|
 | `RENDER_DEPLOY_HOOK_URL` | Render dashboard → service → Settings → Deploy Hook URL | backend deploy |
-| `BACKEND_URL` | `https://<backend>.onrender.com` (no trailing slash) | backend health-check job |
+| `BACKEND_URL` | `https://sugarcane-backend-ql0e.onrender.com` (no trailing slash) | backend health-check job |
 
 The following were used by the old `vercel deploy` CLI step and are now
 **optional** (kept for `vercel pull` manual use, the workflow no longer needs
@@ -92,10 +92,10 @@ The `deploy.yml` workflow triggers on every push to `main` after CI is green
 
 ```bash
 # Backend
-curl https://<backend-url>/health
+curl https://sugarcane-backend-ql0e.onrender.com/health
 # → {"status":"ok",...}
 
-curl https://<backend-url>/metrics-summary
+curl https://sugarcane-backend-ql0e.onrender.com/metrics-summary
 # → {"count":...,"p50_ms":...,...}
 
 # Frontend
