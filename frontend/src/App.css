@@ -466,6 +466,20 @@ h1, h2, h3, .logo, .stat-value {
   object-fit: contain;
 }
 
+/* Webcam video + inference overlay inside the 16/9 drop-zone.
+   Both must be absolutely positioned and stacked, but centered
+   within the drop-zone so object-fit: contain keeps the camera
+   feed framed rather than stretched to all four edges. */
+.webcam-layer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
 /* === LOADING (model still downloading) === */
 .drop-zone-loading {
   cursor: default;
@@ -516,7 +530,10 @@ h1, h2, h3, .logo, .stat-value {
 .result-actions {
   display: flex;
   justify-content: center;
-  margin-top: 16px;
+  align-items: center;
+  gap: 14px;
+  margin-top: 28px;
+  margin-bottom: 8px;
 }
 
 .btn-secondary {

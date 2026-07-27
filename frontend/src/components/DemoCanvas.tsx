@@ -237,7 +237,6 @@ export function DemoCanvas() {
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
           onClick={() => !imageUrl && !webcamActive && fileInputRef.current?.click()}
-          style={webcamActive ? { cursor: 'default', flexDirection: 'column' } : undefined}
         >
           {webcamActive ? (
             <>
@@ -246,13 +245,13 @@ export function DemoCanvas() {
                 autoPlay
                 muted
                 playsInline
-                className="result-canvas"
-                style={{ position: 'absolute', inset: 0, zIndex: 1 }}
+                className="webcam-layer"
+                style={{ zIndex: 1 }}
               />
               <canvas
                 ref={canvasRef}
-                className="result-canvas"
-                style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none' }}
+                className="webcam-layer"
+                style={{ zIndex: 2, pointerEvents: 'none' }}
               />
             </>
           ) : imageUrl ? (
