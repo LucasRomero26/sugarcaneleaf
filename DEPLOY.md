@@ -62,6 +62,13 @@ VITE_API_URL=https://sugarcane-backend-ql0e.onrender.com   # no trailing slash
 ```
 The frontend reads this at build time, so changing it triggers a redeploy.
 
+> **Note on `VERCEL_OIDC_TOKEN`:** don't keep a `.env.local` with this token
+> — it expires ~2h after issue and only served the (now-deprecated) `vercel
+> deploy` CLI flow. Git integration doesn't need it. If you ran the CLI once
+> and `frontend/.env.local` got created with a stale token, delete it; the
+> repo's `.gitignore` already excludes `*.local`, so it was never committed.
+
+
 The model CDN origin can be overridden with `VITE_MODEL_CDN` (defaults to
 the HuggingFace Hub URL — see section 5). Only set this if you migrate the
 model off HF Hub.
