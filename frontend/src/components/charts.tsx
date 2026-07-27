@@ -73,7 +73,7 @@ export function LatencyTimelineChart({ data }: { data: { t: string[]; p50: numbe
     { name: 'p99', data: data.p99 },
   ];
 
-  return <Chart options={options} series={series} type="area" height="100%" />;
+  return <Chart options={options} series={series} type="area" width="100%" height={280} />;
 }
 
 const BACKEND_PALETTE = ['#22c55e', '#f97316', '#8b5cf6', '#eab308', '#0ea5e9'];
@@ -160,7 +160,7 @@ export function BackendDoughnut({ data }: { data: Record<string, number> }) {
 
   const series = values.length ? values : [1];
 
-  return <Chart options={options} series={series} type="donut" height="100%" />;
+  return <Chart options={options} series={series} type="donut" width="100%" height={280} />;
 }
 
 export function ClassesBar({ data }: { data: Record<string, number> }) {
@@ -217,5 +217,5 @@ export function ClassesBar({ data }: { data: Record<string, number> }) {
 
   const series = [{ name: 'detections', data: values.length ? values : [0] }];
 
-  return <Chart options={options} series={series} type="bar" height="100%" />;
+  return <Chart options={options} series={series} type="bar" width="100%" height={280} />;
 }

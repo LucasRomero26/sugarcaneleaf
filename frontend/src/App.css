@@ -862,7 +862,12 @@ h1, h2, h3, .logo, .stat-value {
 .chart-canvas {
   flex: 1;
   position: relative;
-  min-height: 240px;
+  height: 280px;
+  min-height: 280px;
+}
+
+.chart-canvas .apexcharts-canvas {
+  height: 280px !important;
 }
 
 .chart-empty {
