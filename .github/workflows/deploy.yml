@@ -22,20 +22,30 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
-      - name: Trigger Render deploy hook
+      - name: Trigger Render deploy hook (best-effort)
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "::error::RENDER_DEPLOY_HOOK_URL secret not set"
-            exit 1
+            echo "::warning::RENDER_DEPLOY_HOOK_URL secret not set — relying on Render autoDeploy only"
+            exit 0
           fi
+          # Render occasionally returns HTTP 500 if a deploy is already in
+          # flight (race with render.yaml 'autoDeploy: true'). Treat 500 as
+          # transient — Render will deploy our commit via autoDeploy anyway.
+          # We still want to flip the latest commit pointer if no deploy was
+          # queued, so fire-and-forget with `-f` removed.
           echo "Triggering Render deploy hook..."
-          curl -fsSL "$RENDER_DEPLOY_HOOK_URL" \
-            -o render-response.json -w "HTTP %{http_code}\n"
-          echo "::notice::Render deploy triggered"
+          status=$(curl -sSL -o /dev/null -w "%{http_code}" \
+            -X POST "$RENDER_DEPLOY_HOOK_URL" || true)
+          echo "Render hook HTTP: $status"
+          if [ "$status" = "200" ] || [ "$status" = "201" ] || [ "$status" = "202" ]; then
+            echo "::notice::Render deploy hook accepted"
+          else
+            echo "::warning::Render hook returned $status — Render autoDeploy (render.yaml) will still pick up commit ${{ github.sha }}"
+          fi
 
-      - name: Wait for backend health (warm-up)
+      - name: Wait for backend health (warm-up + HEAD endpoint)
         env:
           BACKEND_URL: ${{ secrets.BACKEND_URL }}
         run: |
@@ -43,13 +53,24 @@ jobs:
             echo "::warning::BACKEND_URL secret not set — skipping health check"
             exit 0
           fi
-          echo "Polling $BACKEND_URL/health ..."
+          echo "Polling $BACKEND_URL/health (HEAD) ..."
           for i in $(seq 1 30); do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" -I "${BACKEND_URL}/health" || echo "000")
+            if [ "$code" = "200" ]; then
+              echo "Backend healthy (HEAD 200) after ${i}0s"
+              exit 0
+            fi
+            echo "  attempt $i: HTTP $code — waiting 10s"
+            sleep 10
+          done
+          # Fall back to GET in case HEAD isn't deployed yet (legacy server)
+          echo "HEAD ping never returned 200 — trying GET ..."
+          for i in $(seq 1 6); do
             if curl -sf "${BACKEND_URL}/health" > /dev/null 2>&1; then
-              echo "Backend healthy after ${i}0s"
+              echo "Backend healthy via GET after fallback ${i}0s"
               exit 0
             fi
             sleep 10
           done
-          echo "::error::Backend did not become healthy in 5min"
+          echo "::error::Backend did not become healthy in 6min"
           exit 1
