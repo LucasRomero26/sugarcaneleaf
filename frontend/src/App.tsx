@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { DemoCanvas } from './components/DemoCanvas';
 import { MetricsTicker } from './components/MetricsTicker';
 import './App.css';
@@ -13,34 +13,39 @@ function useHashRoute(): string {
   return hash;
 }
 
-function useCountUp(target: number, duration = 1800) {
+// Animated count-up that runs once when the hero is shown. When the user
+// leaves the hero (e.g. navigates to #/dashboard) we reset to 0 so coming
+// back re-animates from scratch, instead of freezing at the stale value.
+function useCountUp(shouldRun: boolean, target: number, duration = 1800) {
   const [count, setCount] = useState(0);
-  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const observer = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting) return;
-      observer.disconnect();
-      let start = 0;
-      const step = (timestamp: number) => {
-        if (!start) start = timestamp;
-        const progress = Math.min((timestamp - start) / duration, 1);
-        const ease = 1 - Math.pow(1 - progress, 4);
-        setCount(Math.round(ease * target));
-        if (progress < 1) requestAnimationFrame(step);
-      };
-      requestAnimationFrame(step);
-    }, { threshold: 0.1 });
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [target, duration]);
-  return { count, ref };
+    if (!shouldRun) {
+      setCount(0);
+      return;
+    }
+    let raf = 0;
+    let t0 = 0;
+    const step = (ts: number) => {
+      if (!t0) t0 = ts;
+      const progress = Math.min((ts - t0) / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 4);
+      setCount(Math.round(ease * target));
+      if (progress < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [shouldRun, target, duration]);
+  // No ref/IntersectionObserver needed: the hero is above the fold on mount
+  // and re-runs whenever shouldRun flips back to true.
+  return { count };
 }
 
 export default function App() {
   const route = useHashRoute();
   const isDashboard = route === 'dashboard';
-  const { count: mapCount, ref: mapRef } = useCountUp(917, 2000);
-  const { count: msCount, ref: msRef } = useCountUp(47, 1500);
+  const heroActive = !isDashboard;
+  const { count: mapCount } = useCountUp(heroActive, 917, 2000);
+  const { count: msCount } = useCountUp(heroActive, 47, 1500);
 
   return (
     <>
@@ -85,7 +90,7 @@ export default function App() {
             </div>
 
             <div className="hero-right">
-              <div className="stat-block stat-block-main" ref={mapRef}>
+              <div className="stat-block stat-block-main">
                 <div className="stat-block-number">{(mapCount / 10).toFixed(1)}<span className="stat-block-unit">%</span></div>
                 <div className="stat-block-rule"></div>
                 <div className="stat-block-label">mAP@0.5 Precision</div>
@@ -98,7 +103,7 @@ export default function App() {
                   <div className="stat-block-rule"></div>
                   <div className="stat-block-label">Disease Classes</div>
                 </div>
-                <div className="stat-block stat-block-sm" ref={msRef}>
+                <div className="stat-block stat-block-sm">
                   <div className="stat-block-number">{msCount}<span className="stat-block-unit">ms</span></div>
                   <div className="stat-block-rule"></div>
                   <div className="stat-block-label">p99 Latency</div>
