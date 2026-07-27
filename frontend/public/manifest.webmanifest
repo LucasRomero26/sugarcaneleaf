@@ -1,0 +1,14 @@
+{
+  "name": "Sugarcane Leaf Disease Detection",
+  "short_name": "SugarcaneLeaf",
+  "description": "Foliar disease segmentation for sugarcane — YOLO26m-seg running in-browser via LiteRT.js + WebGPU.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4fdf8",
+  "theme_color": "#22c55e",
+  "icons": [
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/icon-mask.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" }
+  ]
+}
