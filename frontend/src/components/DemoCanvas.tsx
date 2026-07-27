@@ -278,7 +278,7 @@ export function DemoCanvas() {
         </div>
       )}
 
-      {(!loading && (webcamActive || (imageUrl && !predicting))) && (
+      {!loading && !error && (
         <div className="result-actions">
           {webcamActive ? (
             <button
@@ -292,18 +292,20 @@ export function DemoCanvas() {
             <>
               <button
                 type="button"
-                className={`btn-secondary${webcamActive ? ' active' : ''}`}
+                className="btn-secondary"
                 onClick={startWebcam}
               >
                 Webcam mode
               </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={resetToUpload}
-              >
-                Try another image
-              </button>
+              {imageUrl && !predicting && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={resetToUpload}
+                >
+                  Try another image
+                </button>
+              )}
             </>
           )}
         </div>
