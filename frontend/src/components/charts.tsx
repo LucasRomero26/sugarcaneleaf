@@ -184,8 +184,8 @@ export function ClassesBar({ data }: { data: Record<string, number> }) {
         distributed: true,
         horizontal: true,
         borderRadius: 8,
-        barHeight: '60%',
-        dataLabels: { position: 'top' },
+        barHeight: '70%',
+        dataLabels: { position: 'center' },
       },
     },
     fill: {
@@ -194,9 +194,9 @@ export function ClassesBar({ data }: { data: Record<string, number> }) {
     },
     dataLabels: {
       enabled: true,
-      textAnchor: 'start',
-      offsetX: 8,
-      style: { fontSize: '12px', fontWeight: 700, fontFamily: FONT, colors: [TEXT_STRONG] },
+      textAnchor: 'middle',
+      style: { fontSize: '13px', fontWeight: 700, fontFamily: FONT, colors: ['#fff'] },
+      dropShadow: { enabled: true, top: 1, left: 0, blur: 2, opacity: 0.5 },
       formatter: (_: number, opts: any) => `${opts.w.globals.series[opts.seriesIndex][opts.dataPointIndex]}`,
     },
     grid: { borderColor: GRID, strokeDashArray: 3, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } }, padding: { left: 8, right: 32 } },
