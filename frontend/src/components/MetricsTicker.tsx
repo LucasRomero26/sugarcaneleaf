@@ -26,6 +26,28 @@ function timeLabel(): string {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+// Synthetic seed timeline so the chart has content immediately after a page
+// reload using the local cache's current p50/p99.
+// In real deployments we'd store timestamped percentiles, but for the demo
+// the local cache stores raw reports only — we jitter around the current
+// percentiles to provide a representative shape rather than a single point.
+function buildSeedTimeline(data: MetricsSummary): TimelinePoint[] {
+  const p50 = data.p50_ms ?? 0;
+  const p99 = data.p99_ms ?? 0;
+  const seed: TimelinePoint[] = [];
+  for (let i = 8; i >= 1; i--) {
+    const jitter = (Math.sin(i * 1.3) + 1) / 2;
+    seed.push({
+      t: new Date(Date.now() - i * 30_000).toLocaleTimeString(
+        [], { hour: '2-digit', minute: '2-digit', second: '2-digit' }
+      ),
+      p50: Math.max(1, p50 * (0.82 + jitter * 0.36)),
+      p99: Math.max(1, p99 * (0.85 + jitter * 0.3)),
+    });
+  }
+  return seed;
+}
+
 /** Merge a server summary with the local one. We take the larger count and
  *  the union of by_backend / by_device / classes_distribution; percentiles
  *  prefer the side with more samples. */
@@ -64,20 +86,29 @@ function mergeSummaries(server: MetricsSummary | null, local: MetricsSummary | n
 }
 
 export function MetricsTicker() {
-  const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
+  // Initialize state synchronously from localStorage so the dashboard paints
+  // with the user's historical data on the first render, even if the backend
+  // is sleeping. The backend will then merge in on the first poll. This is
+  // the "stale-while-revalidate" pattern used by SWR/TanStack Query/Next.js
+  // cache — never show an empty state when data is available.
+  const [metrics, setMetrics] = useState<MetricsSummary | null>(
+    () => {
+      const cached = getLocalSummary();
+      return cached.count > 0 ? cached : null;
+    }
+  );
   const [error, setError] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
-  const lastCountRef = useRef(0);
+  const lastCountRef = useRef(metrics?.count ?? 0);
 
   useEffect(() => {
     let active = true;
 
-    // Build the merged view immediately from local cache (works even if the
-    // backend is cold/sleeping) so the dashboard isn't empty on first paint.
-    const seedLocal = getLocalSummary();
-    if (seedLocal.count > 0) {
-      setMetrics(seedLocal);
-      lastCountRef.current = seedLocal.count;
+    // Seed timeline from the cached window extremity so the chart isn't
+    // empty after a page reload.
+    const seed = getLocalSummary();
+    if (seed.count > 0 && lastCountRef.current === 0) {
+      setTimeline((prev) => prev.length > 0 ? prev : buildSeedTimeline(seed));
     }
 
     const pushTimeline = (data: MetricsSummary) => {
@@ -89,18 +120,7 @@ export function MetricsTicker() {
       setTimeline((prev) => {
         let updated = [...prev, next];
         if (prev.length === 0) {
-          const p50 = data.p50_ms ?? 0;
-          const p99 = data.p99_ms ?? 0;
-          const seed: TimelinePoint[] = [];
-          for (let i = 8; i >= 1; i--) {
-            const jitter = (Math.sin(i * 1.3) + 1) / 2;
-            seed.push({
-              t: new Date(Date.now() - i * 30_000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              p50: Math.max(1, p50 * (0.82 + jitter * 0.36)),
-              p99: Math.max(1, p99 * (0.85 + jitter * 0.3)),
-            });
-          }
-          updated = [...seed, next];
+          updated = [...buildSeedTimeline(data), next];
         }
         return updated.length > TIMELINE_MAX ? updated.slice(updated.length - TIMELINE_MAX) : updated;
       });
