@@ -544,6 +544,12 @@ h1, h2, h3, .logo, .stat-value {
   transform: translateY(0);
 }
 
+.btn-secondary.active {
+  background: #4318ff;
+  color: white;
+  box-shadow: 0 6px 14px rgba(67,  24, 255, 0.25);
+}
+
 /* === DEMO FOOTER === */
 .demo-footer {
   display: grid;

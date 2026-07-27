@@ -6,11 +6,16 @@ import { WebGPUStatus } from './WebGPUStatus';
 import { classColors, yoloClasses, prettyClass, MODEL_PATH, FALLBACK_MODEL_PATH } from '../lib/config';
 
 const CONF_THRESHOLD = 0.5;
+const WEBCAM_FPS = 5;
+const WEBCAM_INTERVAL_MS = 1000 / WEBCAM_FPS;
 
 export function DemoCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const webcamIntervalRef = useRef<number | null>(null);
 
   const [model, setModel] = useState<YOLO | null>(null);
   const [device, setDevice] = useState<string | null>(null);
@@ -21,6 +26,11 @@ export function DemoCanvas() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [useFallback, setUseFallback] = useState(false);
+
+  // Webcam mode state
+  const [webcamActive, setWebcamActive] = useState(false);
+  const [webcamError, setWebcamError] = useState<string | null>(null);
+  const webcamPredictingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +124,89 @@ export function DemoCanvas() {
     if (fileInputRef.current) fileInputRef.current.click();
   };
 
+  const stopWebcam = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (webcamIntervalRef.current != null) {
+      clearInterval(webcamIntervalRef.current);
+      webcamIntervalRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setWebcamActive(false);
+    webcamPredictingRef.current = false;
+    setResults(null);
+    setLatency(null);
+  }, []);
+
+  const startWebcam = useCallback(async () => {
+    if (!model) return;
+    setWebcamError(null);
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setWebcamError('Webcam not supported in this browser.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      streamRef.current = stream;
+      setWebcamActive(true);
+
+      // Defer video element binding to next tick so it's rendered
+      requestAnimationFrame(() => {
+        if (!videoRef.current) return;
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => videoRef.current?.play();
+
+        // 5fps inference loop over the live video frame
+        webcamIntervalRef.current = window.setInterval(async () => {
+          if (!model || !videoRef.current || videoRef.current.readyState < 2) return;
+          if (webcamPredictingRef.current) return; // skip if last frame still running
+          webcamPredictingRef.current = true;
+          try {
+            const t0 = performance.now();
+            const res = await runInference(model, videoRef.current, CONF_THRESHOLD);
+            const totalMs = performance.now() - t0;
+            setLatency(totalMs);
+            setResults(res);
+
+            if (canvasRef.current) {
+              const { annotate } = await import('@ultralytics/yolo');
+              await annotate(canvasRef.current, videoRef.current, res, { labels: true });
+            }
+
+            const classesDetected = res.boxes.map((b) => b.name);
+            await reportLatency(totalMs, model.device, useFallback ? 'ort_web' : 'litert_js', classesDetected);
+          } catch (e: any) {
+            console.warn('webcam inference tick failed:', e);
+          } finally {
+            webcamPredictingRef.current = false;
+          }
+        }, WEBCAM_INTERVAL_MS);
+      });
+    } catch (e: any) {
+      const name = e?.name ?? '';
+      if (name === 'NotAllowedError') setWebcamError('Camera permission denied.');
+      else if (name === 'NotFoundError') setWebcamError('No camera found.');
+      else setWebcamError(`Webcam error: ${e.message ?? e}`);
+      setWebcamActive(false);
+    }
+  }, [model, useFallback]);
+
+  // Release camera + interval on unmount (e.g. navigating to #/dashboard)
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      if (webcamIntervalRef.current != null) {
+        clearInterval(webcamIntervalRef.current);
+      }
+    };
+  }, []);
+
   const detectionList = results?.boxes?.map((b, i) => (
     <div key={i} className="detection-item">
       <span className="det-color" style={{ background: classColors[b.name] || '#888' }} />
@@ -143,9 +236,26 @@ export function DemoCanvas() {
           className="drop-zone"
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
-          onClick={() => !imageUrl && fileInputRef.current?.click()}
+          onClick={() => !imageUrl && !webcamActive && fileInputRef.current?.click()}
+          style={webcamActive ? { cursor: 'default', flexDirection: 'column' } : undefined}
         >
-          {imageUrl ? (
+          {webcamActive ? (
+            <>
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                className="result-canvas"
+                style={{ position: 'absolute', inset: 0, zIndex: 1 }}
+              />
+              <canvas
+                ref={canvasRef}
+                className="result-canvas"
+                style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none' }}
+              />
+            </>
+          ) : imageUrl ? (
             <canvas ref={canvasRef} className="result-canvas" />
           ) : (
             <div className="drop-placeholder">
@@ -168,15 +278,34 @@ export function DemoCanvas() {
         </div>
       )}
 
-      {imageUrl && !predicting && (
+      {(!loading && (webcamActive || (imageUrl && !predicting))) && (
         <div className="result-actions">
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={resetToUpload}
-          >
-            Try another image
-          </button>
+          {webcamActive ? (
+            <button
+              type="button"
+              className="btn-secondary active"
+              onClick={stopWebcam}
+            >
+              Stop webcam
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className={`btn-secondary${webcamActive ? ' active' : ''}`}
+                onClick={startWebcam}
+              >
+                Webcam mode
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={resetToUpload}
+              >
+                Try another image
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -193,6 +322,7 @@ export function DemoCanvas() {
             </p>
           )}
           {error && <div className="error">{error}</div>}
+          {webcamError && <div className="error">{webcamError}</div>}
         </div>
 
         <div className="classes-legend">
