@@ -17,8 +17,17 @@ import react from '@vitejs/plugin-react'
 // cross-origin` and `access-control-allow-origin: *`, so it loads cleanly
 // under our COOP/COEP cross-origin isolation headers.
 
-export default defineConfig({
+export default defineConfig(({ isSsrBuild }) => ({
   plugins: [react()],
+  build: {
+    // Never publish source maps: they would expose the original TS/TSX source.
+    // scripts/prerender.mjs fails the build if any .map file or
+    // sourceMappingURL reference ends up in dist/.
+    sourcemap: false,
+    // The SSR bundle only feeds the build-time prerender; skip copying the
+    // ~40MB public/ dir (LiteRT wasm) into it.
+    copyPublicDir: !isSsrBuild,
+  },
   server: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
@@ -37,4 +46,4 @@ export default defineConfig({
     // by Vite). Don't include @litertjs/core anywhere — it loads from CDN.
     exclude: ['@ultralytics/yolo', '@litertjs/core'],
   },
-})
+}))

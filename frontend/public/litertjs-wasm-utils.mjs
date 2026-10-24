@@ -46,4 +46,3 @@ var createWasmLib = async (constructorFcn, wasmLoaderScript, assetLoaderScript, 
 export {
   createWasmLib
 };
-//# sourceMappingURL=index.js.map

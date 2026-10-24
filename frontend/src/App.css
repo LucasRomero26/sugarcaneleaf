@@ -140,14 +140,10 @@ h1, h2, h3, .logo, .stat-value {
   gap: 8px;
 }
 
-.logo::before {
-  content: '';
-  display: inline-block;
-  width: 24px;
-  height: 24px;
-  background: linear-gradient(135deg, #22c55e, #10b981);
-  border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(34, 197, 94, 0.3);
+.logo img {
+  width: 28px;
+  height: 28px;
+  display: block;
 }
 
 .logo span {
@@ -743,7 +739,7 @@ h1, h2, h3, .logo, .stat-value {
   gap: 12px;
 }
 
-.dashboard-header h2 {
+.dashboard-header h1 {
   font-size: 1.4rem;
   font-weight: 800;
   color: var(--text);
@@ -920,6 +916,51 @@ footer {
   font-size: 0.9rem;
   font-weight: 500;
   margin-top: 40px;
+}
+
+/* === 404 PAGE === */
+.not-found-page {
+  min-height: calc(100vh - 140px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 120px 24px 40px;
+}
+
+.not-found {
+  text-align: center;
+  max-width: 560px;
+  animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.not-found-code {
+  font-size: clamp(5rem, 14vw, 8rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  color: var(--accent);
+}
+
+.not-found h1 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 900;
+  color: #0a2e1a;
+  letter-spacing: -0.03em;
+  margin: 12px 0 16px;
+}
+
+.not-found-text {
+  color: #4b7a5e;
+  font-size: 1.05rem;
+  margin-bottom: 36px;
+}
+
+.not-found-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+  align-items: center;
 }
 
 /* === RESPONSIVE === */

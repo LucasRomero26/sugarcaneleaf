@@ -1,20 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DemoCanvas } from './components/DemoCanvas';
 import { MetricsTicker } from './components/MetricsTicker';
+import { NotFound } from './components/NotFound';
+import { Link } from './components/Link';
+import { applyHead } from './lib/head';
+import { usePath } from './lib/router';
+import { matchRoute, REPO_URL } from './lib/routes';
 import './App.css';
 
-function useHashRoute(): string {
-  const [hash, setHash] = useState(() => window.location.hash.replace(/^#\/?/, ''));
-  useEffect(() => {
-    const onChange = () => setHash(window.location.hash.replace(/^#\/?/, ''));
-    window.addEventListener('hashchange', onChange);
-    return () => window.removeEventListener('hashchange', onChange);
-  }, []);
-  return hash;
-}
-
 // Animated count-up that runs once when the hero is shown. When the user
-// leaves the hero (e.g. navigates to #/dashboard) we reset to 0 so coming
+// leaves the hero (e.g. navigates to /dashboard) we reset to 0 so coming
 // back re-animates from scratch, instead of freezing at the stale value.
 function useCountUp(shouldRun: boolean, target: number, duration = 1800) {
   const [count, setCount] = useState(0);
@@ -40,35 +35,54 @@ function useCountUp(shouldRun: boolean, target: number, duration = 1800) {
   return { count };
 }
 
-export default function App() {
-  const route = useHashRoute();
-  const isDashboard = route === 'dashboard';
-  const heroActive = !isDashboard;
+export default function App({ initialPath = '/' }: { initialPath?: string }) {
+  const path = usePath(initialPath);
+  const route = matchRoute(path);
+  const heroActive = route.name === 'home';
   const { count: mapCount } = useCountUp(heroActive, 917, 2000);
   const { count: msCount } = useCountUp(heroActive, 47, 1500);
 
+  const firstRender = useRef(true);
+  useEffect(() => {
+    applyHead(route);
+    // On the initial load the browser already handled scroll; after an
+    // in-app route change, land on the requested anchor (e.g. /#demo) or the top.
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    const target = window.location.hash && document.getElementById(window.location.hash.slice(1));
+    if (target) target.scrollIntoView();
+    else window.scrollTo(0, 0);
+  }, [route]);
+
   return (
     <>
-      <div className="animated-bg">
+      <div className="animated-bg" aria-hidden="true">
         <div className="orb orb-1"></div>
         <div className="orb orb-2"></div>
         <div className="orb orb-3"></div>
       </div>
       
       <nav className="navbar">
-        <a href="/" className="logo">
+        <Link href="/" className="logo">
+          <img src="/icon-192.png" alt="SugarcaneLeaf logo" width="28" height="28" />
           Sugarcane<span>Leaf</span>
-        </a>
+        </Link>
         <div className="nav-links">
-          <a href="#demo">Demo</a>
-          <a href="#/dashboard">Dashboard</a>
-          <a href="https://github.com/LucasRomero26/sugarcane" target="_blank" rel="noopener noreferrer">
+          <Link href="/#demo">Demo</Link>
+          <Link href="/dashboard">Dashboard</Link>
+          <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
             GitHub
           </a>
         </div>
       </nav>
 
-      {isDashboard ? (
+      {route.name === 'notFound' ? (
+        <main className="not-found-page">
+          <NotFound />
+        </main>
+      ) : route.name === 'dashboard' ? (
         <main className="dashboard-page">
           <section className="metrics-section">
             <MetricsTicker />
@@ -85,7 +99,7 @@ export default function App() {
               </p>
               <a href="#demo" className="hero-cta">
                 Try the Demo
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </a>
             </div>
 
@@ -117,10 +131,10 @@ export default function App() {
             <DemoCanvas />
             
             <div className="demo-cta">
-              <a href="#/dashboard" className="cta-button">
+              <Link href="/dashboard" className="cta-button">
                 View Full Metrics Dashboard
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-              </a>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </Link>
             </div>
           </section>
         </main>

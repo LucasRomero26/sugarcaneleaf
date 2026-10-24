@@ -3,6 +3,11 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/llm.txt", "destination": "/llms.txt" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

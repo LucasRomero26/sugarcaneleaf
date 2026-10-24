@@ -31,7 +31,7 @@ Drag & drop a sugarcane leaf image in the browser → the model runs **entirely 
   <img src="docs/dashboard.png" alt="Metrics dashboard — latency p50/p99, backend split, detected classes" width="720" />
 </p>
 
-The dashboard at `/#/dashboard` collects every inference's latency, merges it with a server-side ring buffer (so cross-visitor aggregate trends are visible), and renders live KPIs: **p50, p99, throughput, error rate, WebGPU vs WASM split, and the distribution of diseases detected**.
+The dashboard at `/dashboard` collects every inference's latency, merges it with a server-side ring buffer (so cross-visitor aggregate trends are visible), and renders live KPIs: **p50, p99, throughput, error rate, WebGPU vs WASM split, and the distribution of diseases detected**.
 
 ---
 
@@ -127,7 +127,7 @@ The right architecture depends on constraints. For a **portfolio demo** where (a
 
 ## Latency & dashboard
 
-The dashboard (`/#/dashboard`) is the MLOps half of the project. Without it, LiteRT.js is just a deployment. With it, this is observable MLOps.
+The dashboard (`/dashboard`) is the MLOps half of the project. Without it, LiteRT.js is just a deployment. With it, this is observable MLOps.
 
 **What it shows (live, updated every 30s):**
 

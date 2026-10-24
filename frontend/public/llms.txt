@@ -1,0 +1,30 @@
+# SugarcaneLeaf — Sugarcane Leaf Disease Detection
+
+> Foliar disease segmentation for sugarcane that runs entirely in the browser. A YOLO26m-seg model, fine-tuned on 6,004 field images of sugarcane leaves, is exported to LiteRT and executed client-side with LiteRT.js on WebGPU (ONNX Runtime Web / WASM fallback). Images never leave the user's device; there is no server roundtrip for inference.
+
+Key facts:
+
+- Classes (5): healthy, mosaic, red rot, rust, yellow.
+- Accuracy on the held-out test split (255 images): box mAP@0.5 = 0.917, box mAP@0.5:0.95 = 0.865, mask mAP@0.5 = 0.910.
+- Typical p99 inference latency: ~47 ms on a desktop GPU via WebGPU; mobile and integrated GPUs are slower, and the live dashboard reports real visitor latencies.
+- Model weights (~90 MB) are downloaded once from Hugging Face Hub and cached by the browser.
+- Input: JPEG, PNG or WebP image upload (drag & drop), or the webcam at 5 fps.
+- Author: Lucas Romero (AI/ML Engineer, Fullstack Developer).
+- Source code: https://github.com/LucasRomero26/sugarcaneleaf
+
+## Pages
+
+- [Detector (home)](https://sugarcaneleaf.vercel.app/): upload a sugarcane leaf photo or start the webcam to get disease segmentation masks, class labels and confidence scores.
+- [Live metrics dashboard](https://sugarcaneleaf.vercel.app/dashboard): p50/p99 latency, throughput, error rate, WebGPU vs WASM split and the distribution of detected disease classes.
+
+## Source and documentation
+
+- [README](https://github.com/LucasRomero26/sugarcaneleaf/blob/main/README.md): architecture, metrics and how to run the project.
+- [Validation metrics](https://github.com/LucasRomero26/sugarcaneleaf/blob/main/reports/val_metrics.json): per-class precision, recall and mAP on the test split.
+- [Export validation](https://github.com/LucasRomero26/sugarcaneleaf/blob/main/reports/export_validation.md): PyTorch vs LiteRT parity check.
+- [Model weights](https://huggingface.co/sacwaves/sugarcaneleaf): .tflite and .onnx exports on Hugging Face Hub.
+
+## Optional
+
+- [Deploy guide](https://github.com/LucasRomero26/sugarcaneleaf/blob/main/DEPLOY.md): Vercel (frontend) and Render (FastAPI backend that aggregates latency reports).
+- [Load test report](https://github.com/LucasRomero26/sugarcaneleaf/blob/main/reports/loadtest.md): k6 results for the backend endpoints.

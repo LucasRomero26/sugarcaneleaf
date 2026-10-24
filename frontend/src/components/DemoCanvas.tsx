@@ -195,7 +195,7 @@ export function DemoCanvas() {
     }
   }, [model, useFallback]);
 
-  // Release camera + interval on unmount (e.g. navigating to #/dashboard)
+  // Release camera + interval on unmount (e.g. navigating to /dashboard)
   useEffect(() => {
     return () => {
       if (streamRef.current) {
@@ -245,20 +245,28 @@ export function DemoCanvas() {
                 autoPlay
                 muted
                 playsInline
+                aria-label="Live webcam feed of the sugarcane leaf being analyzed"
                 className="webcam-layer"
                 style={{ zIndex: 1 }}
               />
               <canvas
                 ref={canvasRef}
+                role="img"
+                aria-label="Disease segmentation masks and labels drawn over the webcam feed"
                 className="webcam-layer"
                 style={{ zIndex: 2, pointerEvents: 'none' }}
               />
             </>
           ) : imageUrl ? (
-            <canvas ref={canvasRef} className="result-canvas" />
+            <canvas
+              ref={canvasRef}
+              role="img"
+              aria-label={results ? `Uploaded sugarcane leaf with detected regions: ${results.boxes.map((b) => prettyClass(b.name)).join(', ') || 'no disease detected'}` : 'Uploaded sugarcane leaf image'}
+              className="result-canvas"
+            />
           ) : (
             <div className="drop-placeholder">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
                 <polyline points="7 10 12 15 17 10" strokeLinecap="round" strokeLinejoin="round" />
                 <line x1="12" y1="15" x2="12" y2="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -270,6 +278,7 @@ export function DemoCanvas() {
           <input
             ref={fileInputRef}
             type="file"
+            aria-label="Upload a sugarcane leaf image"
             accept="image/*"
             onChange={handleFileInput}
             style={{ display: 'none' }}

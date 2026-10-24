@@ -1,0 +1,6 @@
+# https://sugarcaneleaf.vercel.app/robots.txt
+User-agent: *
+Allow: /
+Disallow: /litert/
+
+Sitemap: https://sugarcaneleaf.vercel.app/sitemap.xml

@@ -106,7 +106,7 @@ curl https://sugarcane-backend-ql0e.onrender.com/metrics-summary
 # → {"count":...,"p50_ms":...,...}
 
 # Frontend
-# Open the Vercel URL, try drag & drop of a leaf image, check the dashboard at #/dashboard
+# Open the Vercel URL, try drag & drop of a leaf image, check the dashboard at /dashboard
 ```
 
 ## 5. Updating models

@@ -1,6 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { fetchMetricsSummary, getLocalSummary, type MetricsSummary } from '../lib/metrics';
-import { LatencyTimelineChart, BackendDoughnut, ClassesBar } from './charts';
+
+// ApexCharts touches `window` at import time, so it's split into its own
+// chunk: keeps it out of the build-time prerender and off the home page.
+const LatencyTimelineChart = lazy(() => import('./charts').then((m) => ({ default: m.LatencyTimelineChart })));
+const BackendDoughnut = lazy(() => import('./charts').then((m) => ({ default: m.BackendDoughnut })));
+const ClassesBar = lazy(() => import('./charts').then((m) => ({ default: m.ClassesBar })));
 
 const POLL_MS = 30_000;
 const TIMELINE_MAX = 40;
@@ -181,7 +186,7 @@ export function MetricsTicker() {
     return (
       <div className="metrics-dashboard">
         <div className="dashboard-header">
-          <h2>Metrics Dashboard</h2>
+          <h1>Live Inference Metrics Dashboard</h1>
           <span className="dashboard-window">live</span>
         </div>
         <p className="metrics-error">Backend unavailable: {error}</p>
@@ -193,7 +198,7 @@ export function MetricsTicker() {
     return (
       <div className="metrics-dashboard">
         <div className="dashboard-header">
-          <h2>Metrics Dashboard</h2>
+          <h1>Live Inference Metrics Dashboard</h1>
           <span className="dashboard-window">live</span>
         </div>
         <p className="no-data">Waiting for inference reports… run the demo above to populate live metrics.</p>
@@ -207,7 +212,7 @@ export function MetricsTicker() {
   return (
     <div className="metrics-dashboard">
       <div className="dashboard-header">
-        <h2>Metrics Dashboard</h2>
+        <h1>Live Inference Metrics Dashboard</h1>
         <span className="dashboard-window">
           {metrics.count} reqs · last {Math.round(metrics.window_seconds)}s · {fmtPct(metrics.error_rate)} errors
         </span>
@@ -236,38 +241,40 @@ export function MetricsTicker() {
         </div>
       </div>
 
-      <div className="charts-grid">
-        <div className="chart-card chart-wide">
-          <h3>Latency over time <span className="chart-sub">p50 / p99 (ms)</span></h3>
-          <div className="chart-canvas">
-            {timeline.length > 0 ? (
-              <LatencyTimelineChart
-                data={{
-                  t: timeline.map((p) => p.t),
-                  p50: timeline.map((p) => p.p50),
-                  p99: timeline.map((p) => p.p99),
-                }}
-              />
-            ) : (
-              <p className="chart-empty">Collecting samples…</p>
-            )}
+      <Suspense fallback={<p className="chart-empty">Loading charts…</p>}>
+        <div className="charts-grid">
+          <div className="chart-card chart-wide">
+            <h3>Latency over time <span className="chart-sub">p50 / p99 (ms)</span></h3>
+            <div className="chart-canvas">
+              {timeline.length > 0 ? (
+                <LatencyTimelineChart
+                  data={{
+                    t: timeline.map((p) => p.t),
+                    p50: timeline.map((p) => p.p50),
+                    p99: timeline.map((p) => p.p99),
+                  }}
+                />
+              ) : (
+                <p className="chart-empty">Collecting samples…</p>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="chart-card">
-          <h3>Backend split <span className="chart-sub">WebGPU vs WASM</span></h3>
-          <div className="chart-canvas">
-            <BackendDoughnut data={backendEntries} />
+          <div className="chart-card">
+            <h3>Backend split <span className="chart-sub">WebGPU vs WASM</span></h3>
+            <div className="chart-canvas">
+              <BackendDoughnut data={backendEntries} />
+            </div>
           </div>
-        </div>
 
-        <div className="chart-card chart-wide">
-          <h3>Detected classes distribution</h3>
-          <div className="chart-canvas">
-            <ClassesBar data={classesEntries} />
+          <div className="chart-card chart-wide">
+            <h3>Detected classes distribution</h3>
+            <div className="chart-canvas">
+              <ClassesBar data={classesEntries} />
+            </div>
           </div>
         </div>
-      </div>
+      </Suspense>
     </div>
   );
 }
