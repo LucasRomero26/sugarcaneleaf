@@ -48,37 +48,37 @@ export async function fetchModelCached(
   const header = Number(resp.headers.get('Content-Length'));
   const total = Number.isFinite(header) && header > 0 ? header : null;
 
-  let bytes: Uint8Array<ArrayBuffer>;
-  if (resp.body) {
-    const reader = resp.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let loaded = 0;
-    onProgress?.({ loaded, total });
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      loaded += value.byteLength;
-      onProgress?.({ loaded, total });
-    }
-    bytes = new Uint8Array(loaded);
-    let offset = 0;
-    for (const c of chunks) {
-      bytes.set(c, offset);
-      offset += c.byteLength;
-    }
-  } else {
-    bytes = new Uint8Array(await resp.arrayBuffer());
-    onProgress?.({ loaded: bytes.byteLength, total: bytes.byteLength });
-  }
-
   if (cache) {
-    // Response() copies the bytes, so this can run while the model initializes.
+    // clone() tees the body: the cache streams one branch to disk while we read
+    // the other, so the model is downloaded once and never copied for storage.
     cache
-      .put(url, new Response(bytes, {
-        headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(bytes.byteLength) },
-      }))
+      .put(url, resp.clone())
       .catch((e) => console.warn('Could not cache model (storage quota?):', e));
   }
-  return bytes;
+
+  if (!resp.body) {
+    const bytes = new Uint8Array(await resp.arrayBuffer());
+    onProgress?.({ loaded: bytes.byteLength, total: bytes.byteLength });
+    return bytes;
+  }
+
+  // Chunks are written straight into one buffer sized from Content-Length. It
+  // only grows when the header is missing or reports a compressed size.
+  const reader = resp.body.getReader();
+  let bytes = new Uint8Array(total ?? 0);
+  let loaded = 0;
+  onProgress?.({ loaded, total });
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (loaded + value.byteLength > bytes.byteLength) {
+      const grown = new Uint8Array(Math.max(bytes.byteLength * 2, loaded + value.byteLength));
+      grown.set(bytes.subarray(0, loaded));
+      bytes = grown;
+    }
+    bytes.set(value, loaded);
+    loaded += value.byteLength;
+    onProgress?.({ loaded, total });
+  }
+  return loaded === bytes.byteLength ? bytes : bytes.slice(0, loaded);
 }
