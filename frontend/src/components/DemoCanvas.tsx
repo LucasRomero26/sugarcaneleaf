@@ -152,7 +152,9 @@ export function DemoCanvas() {
       }
 
       const classesDetected = res.boxes.map((b) => b.name);
-      await reportLatency(totalMs, model.device, fallbackRef.current ? 'ort_web' : 'litert_js', classesDetected);
+      // Telemetry goes out in the background: a sleeping backend must not keep
+      // the demo stuck in "Running inference…" after the result is drawn.
+      void reportLatency(totalMs, model.device, fallbackRef.current ? 'ort_web' : 'litert_js', classesDetected);
     } catch (e: any) {
       setError(`Inference error: ${e.message}`);
     } finally {
@@ -242,7 +244,7 @@ export function DemoCanvas() {
             }
 
             const classesDetected = res.boxes.map((b) => b.name);
-            await reportLatency(totalMs, model.device, fallbackRef.current ? 'ort_web' : 'litert_js', classesDetected);
+            void reportLatency(totalMs, model.device, fallbackRef.current ? 'ort_web' : 'litert_js', classesDetected);
           } catch (e: any) {
             console.warn('webcam inference tick failed:', e);
           } finally {
@@ -336,6 +338,12 @@ export function DemoCanvas() {
               {cached === false && (
                 <span className="hint">The ~94MB model downloads on first use, then stays cached on this device</span>
               )}
+            </div>
+          )}
+          {predicting && imageUrl && !webcamActive && (
+            <div className="inference-overlay" role="status">
+              <span className="spinner" aria-hidden="true" />
+              Analyzing leaf…
             </div>
           )}
           <input

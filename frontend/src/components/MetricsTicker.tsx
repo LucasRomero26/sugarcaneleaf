@@ -103,6 +103,9 @@ export function MetricsTicker() {
     }
   );
   const [error, setError] = useState<string | null>(null);
+  // True until the first server poll answers (it can take a while if the
+  // backend is waking up), so an empty dashboard reads as loading, not empty.
+  const [firstPollPending, setFirstPollPending] = useState(true);
   const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
   const lastCountRef = useRef(metrics?.count ?? 0);
 
@@ -145,6 +148,7 @@ export function MetricsTicker() {
       }
 
       if (!active) return;
+      setFirstPollPending(false);
       const localData = getLocalSummary();
       const merged = mergeSummaries(serverData, localData);
       if (merged) {
@@ -201,7 +205,14 @@ export function MetricsTicker() {
           <h1>Live Inference Metrics Dashboard</h1>
           <span className="dashboard-window">live</span>
         </div>
-        <p className="no-data">Waiting for inference reports… run the demo above to populate live metrics.</p>
+        {firstPollPending ? (
+          <p className="no-data loading-row" role="status">
+            <span className="spinner" aria-hidden="true" />
+            Loading metrics from the server… this can take up to a minute if it was asleep.
+          </p>
+        ) : (
+          <p className="no-data">Waiting for inference reports… run the demo above to populate live metrics.</p>
+        )}
       </div>
     );
   }
