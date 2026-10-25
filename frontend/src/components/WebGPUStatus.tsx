@@ -1,10 +1,16 @@
+export type ModelState = 'idle' | 'loading' | 'ready' | 'error';
+
 interface Props {
   device: string | null;
-  loading: boolean;
+  state: ModelState;
 }
 
-export function WebGPUStatus({ device, loading }: Props) {
-  if (loading) {
+export function WebGPUStatus({ device, state }: Props) {
+  if (state === 'idle') {
+    return <div className="badge badge-loading">Model loads on first use</div>;
+  }
+
+  if (state === 'loading') {
     return (
       <div className="badge badge-loading">
         <span className="dot dot-pulse" />
@@ -13,7 +19,7 @@ export function WebGPUStatus({ device, loading }: Props) {
     );
   }
 
-  if (!device) {
+  if (state === 'error' || !device) {
     return <div className="badge badge-error">Model not loaded</div>;
   }
 

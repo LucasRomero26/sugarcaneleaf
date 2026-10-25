@@ -49,8 +49,11 @@ Render free tier sleeps after 15 min idle. Add a UptimeRobot HTTP monitor hittin
 3. Framework Preset: **Vite** (auto-detected from `vercel.json`)
 4. Build Command: `npm run build`
 5. Output Directory: `dist`
-6. `vercel.json` already sets the COOP/COEP headers required for LiteRT.js
-   WASM threading (SharedArrayBuffer) on every route.
+6. `vercel.json` already sets, on every route, the COOP/COEP headers required
+   for LiteRT.js WASM threading (SharedArrayBuffer) plus the security headers
+   (`X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, a CSP with
+   `frame-ancestors 'none'`, and a `Permissions-Policy` that only allows the
+   camera, for webcam mode). `vite dev`/`vite preview` read the same list.
 7. To re-deploy after config changes: just `git push origin main`. Vercel
    picks it up; no CLI needed.
 

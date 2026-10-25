@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -17,6 +18,16 @@ import react from '@vitejs/plugin-react'
 // cross-origin` and `access-control-allow-origin: *`, so it loads cleanly
 // under our COOP/COEP cross-origin isolation headers.
 
+// Response headers (COOP/COEP for LiteRT threading + security headers) are
+// defined once in vercel.json for production; dev and preview reuse the same
+// list so local behaviour matches the deployed site.
+const vercel = JSON.parse(readFileSync(new URL('./vercel.json', import.meta.url), 'utf-8'))
+const headers: Record<string, string> = Object.fromEntries(
+  vercel.headers
+    .find((h: { source: string }) => h.source === '/(.*)')
+    .headers.map((h: { key: string; value: string }) => [h.key, h.value]),
+)
+
 export default defineConfig(({ isSsrBuild }) => ({
   plugins: [react()],
   build: {
@@ -28,18 +39,8 @@ export default defineConfig(({ isSsrBuild }) => ({
     // ~40MB public/ dir (LiteRT wasm) into it.
     copyPublicDir: !isSsrBuild,
   },
-  server: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    },
-  },
-  preview: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    },
-  },
+  server: { headers },
+  preview: { headers },
   optimizeDeps: {
     // Keep @ultralytics/yolo out of the dep optimizer (it injects *runtime*
     // dynamic imports for peer deps that we want resolved by importmap, not

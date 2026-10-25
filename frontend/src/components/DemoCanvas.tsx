@@ -1,13 +1,53 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { YOLO, Results } from '@ultralytics/yolo';
-import { loadModel, runInference, freeModel } from '../lib/yolo';
+import { loadModel, runInference, freeModel, type LoadProgress } from '../lib/yolo';
+import { isModelCached } from '../lib/modelCache';
 import { reportLatency } from '../lib/metrics';
-import { WebGPUStatus } from './WebGPUStatus';
+import { WebGPUStatus, type ModelState } from './WebGPUStatus';
 import { classColors, yoloClasses, prettyClass, MODEL_PATH, FALLBACK_MODEL_PATH } from '../lib/config';
 
 const CONF_THRESHOLD = 0.5;
 const WEBCAM_FPS = 5;
 const WEBCAM_INTERVAL_MS = 1000 / WEBCAM_FPS;
+
+const fmtMB = (bytes: number) => (bytes / 1e6).toFixed(1);
+
+function ModelProgress({ progress }: { progress: LoadProgress | null }) {
+  const downloading = progress?.phase === 'download';
+  const pct = downloading && progress.total ? Math.min(100, (progress.loaded / progress.total) * 100) : null;
+
+  let label = 'Preparing model…';
+  let detail = 'Reading the cached model from this device';
+  if (downloading) {
+    label = 'Downloading YOLO26m-seg model…';
+    detail = progress.total
+      ? `${fmtMB(progress.loaded)} / ${fmtMB(progress.total)} MB · first time only, then cached on this device`
+      : `${fmtMB(progress.loaded)} MB · first time only, then cached on this device`;
+  } else if (progress?.phase === 'init') {
+    label = 'Initializing model…';
+    detail = 'Compiling for WebGPU (or WASM) on your device';
+  }
+
+  return (
+    <div className="loading-placeholder">
+      <p>{label}</p>
+      <div
+        className={`progress ${pct == null ? 'progress-indeterminate' : ''}`}
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct == null ? undefined : Math.round(pct)}
+      >
+        <div className="progress-fill" style={pct == null ? undefined : { width: `${pct}%` }} />
+      </div>
+      <span className="hint">
+        {pct != null && <strong>{Math.floor(pct)}% · </strong>}
+        {detail}
+      </span>
+    </div>
+  );
+}
 
 export function DemoCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -17,54 +57,76 @@ export function DemoCanvas() {
   const streamRef = useRef<MediaStream | null>(null);
   const webcamIntervalRef = useRef<number | null>(null);
 
-  const [model, setModel] = useState<YOLO | null>(null);
+  // The model is NOT loaded on mount: it is fetched (or read from the Cache
+  // API) the first time the user uploads an image or starts the webcam.
+  const modelRef = useRef<YOLO | null>(null);
+  const fallbackRef = useRef(false);
+  const [modelState, setModelState] = useState<ModelState>('idle');
+  const [progress, setProgress] = useState<LoadProgress | null>(null);
+  const [cached, setCached] = useState<boolean | null>(null);
   const [device, setDevice] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [useFallback, setUseFallback] = useState(false);
+
   const [predicting, setPredicting] = useState(false);
   const [results, setResults] = useState<Results | null>(null);
   const [latency, setLatency] = useState<number | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [useFallback, setUseFallback] = useState(false);
 
   // Webcam mode state
   const [webcamActive, setWebcamActive] = useState(false);
   const [webcamError, setWebcamError] = useState<string | null>(null);
   const webcamPredictingRef = useRef(false);
 
+  const loadingModel = modelState === 'loading';
+
+  // Only checks whether the weights are already on disk (no body is read),
+  // to tell the user if the first run will need a download.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const m = await loadModel(MODEL_PATH);
-        if (cancelled) return;
-        setModel(m);
-        setDevice(m.device);
-        setLoading(false);
-      } catch (e: any) {
-        console.warn('LiteRT load failed, trying ONNX fallback:', e);
-        freeModel();
-        try {
-          const m = await loadModel(FALLBACK_MODEL_PATH);
-          if (cancelled) return;
-          setModel(m);
-          setDevice(m.device);
-          setUseFallback(true);
-          setLoading(false);
-        } catch (e2: any) {
-          if (cancelled) return;
-          setError(`Failed to load model: ${e2.message}`);
-          setLoading(false);
-        }
-      }
-    })();
+    isModelCached(MODEL_PATH).then((hit) => { if (!cancelled) setCached(hit); });
     return () => { cancelled = true; };
   }, []);
 
+  const ensureModel = useCallback(async (): Promise<YOLO | null> => {
+    if (modelRef.current) return modelRef.current;
+    setModelState('loading');
+    setProgress(null);
+    let m: YOLO;
+    try {
+      m = await loadModel(MODEL_PATH, setProgress);
+    } catch (e: any) {
+      console.warn('LiteRT load failed, trying ONNX fallback:', e);
+      freeModel();
+      try {
+        setProgress(null);
+        m = await loadModel(FALLBACK_MODEL_PATH, setProgress);
+        fallbackRef.current = true;
+        setUseFallback(true);
+      } catch (e2: any) {
+        setError(`Failed to load model: ${e2.message}`);
+        setModelState('error');
+        setProgress(null);
+        return null;
+      }
+    }
+    modelRef.current = m;
+    setDevice(m.device);
+    setModelState('ready');
+    setProgress(null);
+    setCached(true);
+    return m;
+  }, []);
+
   const handleFile = useCallback(async (file: File) => {
+    if (loadingModel || predicting) return;
+    setError(null);
+    setResults(null);
+    setLatency(null);
+
+    const model = await ensureModel();
     if (!model) return;
     setPredicting(true);
-    setError(null);
 
     try {
       const url = URL.createObjectURL(file);
@@ -90,13 +152,13 @@ export function DemoCanvas() {
       }
 
       const classesDetected = res.boxes.map((b) => b.name);
-      await reportLatency(totalMs, model.device, useFallback ? 'ort_web' : 'litert_js', classesDetected);
+      await reportLatency(totalMs, model.device, fallbackRef.current ? 'ort_web' : 'litert_js', classesDetected);
     } catch (e: any) {
       setError(`Inference error: ${e.message}`);
     } finally {
       setPredicting(false);
     }
-  }, [model, useFallback]);
+  }, [ensureModel, loadingModel, predicting]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -141,13 +203,15 @@ export function DemoCanvas() {
   }, []);
 
   const startWebcam = useCallback(async () => {
-    if (!model) return;
     setWebcamError(null);
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setWebcamError('Webcam not supported in this browser.');
       return;
     }
+
+    const model = await ensureModel();
+    if (!model) return;
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -162,7 +226,7 @@ export function DemoCanvas() {
 
         // 5fps inference loop over the live video frame
         webcamIntervalRef.current = window.setInterval(async () => {
-          if (!model || !videoRef.current || videoRef.current.readyState < 2) return;
+          if (!videoRef.current || videoRef.current.readyState < 2) return;
           if (webcamPredictingRef.current) return; // skip if last frame still running
           webcamPredictingRef.current = true;
           try {
@@ -178,7 +242,7 @@ export function DemoCanvas() {
             }
 
             const classesDetected = res.boxes.map((b) => b.name);
-            await reportLatency(totalMs, model.device, useFallback ? 'ort_web' : 'litert_js', classesDetected);
+            await reportLatency(totalMs, model.device, fallbackRef.current ? 'ort_web' : 'litert_js', classesDetected);
           } catch (e: any) {
             console.warn('webcam inference tick failed:', e);
           } finally {
@@ -193,7 +257,7 @@ export function DemoCanvas() {
       else setWebcamError(`Webcam error: ${e.message ?? e}`);
       setWebcamActive(false);
     }
-  }, [model, useFallback]);
+  }, [ensureModel]);
 
   // Release camera + interval on unmount (e.g. navigating to /dashboard)
   useEffect(() => {
@@ -219,17 +283,13 @@ export function DemoCanvas() {
     <div className="demo-container">
       <div className="demo-header">
         <h2>Sugarcane Leaf Disease Detection</h2>
-        <WebGPUStatus device={device} loading={loading} />
+        <WebGPUStatus device={device} state={modelState} />
         {useFallback && <div className="badge badge-fallback">ONNX fallback</div>}
       </div>
 
-      {loading ? (
+      {loadingModel ? (
         <div className="drop-zone drop-zone-loading">
-          <div className="loading-placeholder">
-            <div className="spinner" aria-hidden="true" />
-            <p>{error ? 'Retrying with ONNX fallback…' : 'Loading YOLO26m-seg model…'}</p>
-            <span className="hint">First visit downloads ~90MB from CDN (cached on subsequent loads)</span>
-          </div>
+          <ModelProgress progress={progress} />
         </div>
       ) : (
         <div
@@ -273,6 +333,9 @@ export function DemoCanvas() {
               </svg>
               <p>Drag & drop a leaf image or click to upload</p>
               <span className="hint">JPEG, PNG, or WebP — max 10MB</span>
+              {cached === false && (
+                <span className="hint">The ~94MB model downloads on first use, then stays cached on this device</span>
+              )}
             </div>
           )}
           <input
@@ -286,7 +349,7 @@ export function DemoCanvas() {
         </div>
       )}
 
-      {!loading && !error && (
+      {!loadingModel && (
         <div className="result-actions">
           {webcamActive ? (
             <button
@@ -327,7 +390,7 @@ export function DemoCanvas() {
           ) : (
             <p className="no-detections">
               {predicting ? 'Running inference…' :
-               loading ? 'Waiting for model to finish loading…' :
+               loadingModel ? 'Waiting for model to finish loading…' :
                'No detections yet. Upload an image.'}
             </p>
           )}
